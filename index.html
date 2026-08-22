@@ -129,7 +129,7 @@
             try {
                 const res = await fetch(`${SERVER_URL}/login`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
                     body: JSON.stringify({ id: sid })
                 });
                 console.debug('HTTP status', res.status);
@@ -158,7 +158,7 @@
             content.innerHTML = '<p class="text-center text-[10px] py-10 text-gray-400 italic">กำลังโหลด...</p>';
             try {
                 console.debug('fetching', `${SERVER_URL}/get_history`);
-                const res = await fetch(`${SERVER_URL}/get_history`);
+                const res = await fetch(`${SERVER_URL}/get_history`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
                 console.debug('status', res.status);
                 if (!res.ok) {
                     throw new Error(`HTTP ${res.status}`);
@@ -200,7 +200,7 @@
             try {
                 const res = await fetch(`${SERVER_URL}/update_qr`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
                     body: JSON.stringify({ token, student_id: loggedInSid, expires_in: 60 })
                 });
                 const st = document.getElementById("sync-status");
@@ -229,7 +229,7 @@
 
         setInterval(async () => {
             try {
-                const res = await fetch(`${SERVER_URL}/get_last_student`);
+                const res = await fetch(`${SERVER_URL}/get_last_student`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
                 const data = await res.json();
                 document.getElementById("student-id").innerText = data.student_id;
                 document.getElementById("student-name").innerText = data.student_name;
