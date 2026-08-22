@@ -187,27 +187,29 @@
             clearInterval(timerInterval);
             const qrContainer = document.getElementById("qrcode");
             qrContainer.innerHTML = "";
-            const token = createQrToken();
-            new QRCode(qrContainer, {
-                text: token,
-                width: 280,
-                height: 280,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.M
-            });
-
             try {
                 const res = await fetch(`${SERVER_URL}/update_qr`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-                    body: JSON.stringify({ token, student_id: loggedInSid, expires_in: 60 })
+                    body: JSON.stringify({ student_id: loggedInSid, expires_in: 60 })
                 });
+                const data = await res.json();
                 const st = document.getElementById("sync-status");
-                if (res.ok) { st.innerText = "✓ ออนไลน์"; st.style.color = "#10b981"; }
+                if (!res.ok || !data.token) throw new Error(data.message || `HTTP ${res.status}`);
+                new QRCode(qrContainer, {
+                    text: data.token,
+                    width: 280,
+                    height: 280,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+                st.innerText = "✓ ออนไลน์";
+                st.style.color = "#10b981";
             } catch (e) {
                 const st = document.getElementById("sync-status");
                 st.innerText = "❌ ตัดการเชื่อมต่อ"; st.style.color = "#f97316";
+                qrContainer.innerHTML = `<div class="p-10 text-red-500 text-xs text-center">สร้าง QR ไม่สำเร็จ<br>${e.message}</div>`;
             }
             startTimer();
         }

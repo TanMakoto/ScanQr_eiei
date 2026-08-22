@@ -1,10 +1,16 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import csv
+import base64
+import hashlib
+import hmac
 import io
+import json
 import os
+import secrets
 import socket
 import sqlite3
+import time
 from datetime import datetime, timedelta
 import requests
 
@@ -18,6 +24,7 @@ else:
     DB_FILE = os.path.join(BASE_DIR, 'attendance.db')
 STUDENTS_FILE = os.path.join(BASE_DIR, 'students.csv')
 QR_TOKEN_TTL_SECONDS = 60
+QR_SECRET = os.environ.get('QR_SECRET', '')
 REMOTE_API_BASE_URL = os.environ.get('REMOTE_API_BASE_URL', 'https://new-data2.onrender.com').rstrip('/')
 REMOTE_STUDENTS_CSV_URL = os.environ.get(
     'REMOTE_STUDENTS_CSV_URL',
@@ -154,6 +161,46 @@ def purge_expired_qr_tokens():
         QR_TOKEN_MAP.pop(token, None)
 
 
+def create_signed_qr_token(student_id, expires_in=QR_TOKEN_TTL_SECONDS):
+    if not QR_SECRET:
+        raise RuntimeError('QR_SECRET is not configured')
+    payload = {
+        'student_id': student_id,
+        'exp': int(time.time()) + expires_in,
+        'nonce': secrets.token_urlsafe(6),
+    }
+    encoded = base64.urlsafe_b64encode(
+        json.dumps(payload, separators=(',', ':')).encode('utf-8')
+    ).decode('ascii').rstrip('=')
+    signature = hmac.new(
+        QR_SECRET.encode('utf-8'), encoded.encode('ascii'), hashlib.sha256
+    ).digest()
+    encoded_signature = base64.urlsafe_b64encode(signature).decode('ascii').rstrip('=')
+    return f'Q2.{encoded}.{encoded_signature}'
+
+
+def resolve_signed_qr_token(token):
+    if not QR_SECRET or not token.startswith('Q2.'):
+        return None
+    try:
+        _, encoded, signature = token.split('.', 2)
+        expected = hmac.new(
+            QR_SECRET.encode('utf-8'), encoded.encode('ascii'), hashlib.sha256
+        ).digest()
+        actual = base64.urlsafe_b64decode(signature + '=' * (-len(signature) % 4))
+        if not hmac.compare_digest(actual, expected):
+            return None
+        payload = json.loads(base64.urlsafe_b64decode(
+            encoded + '=' * (-len(encoded) % 4)
+        ).decode('utf-8'))
+        if int(payload.get('exp', 0)) <= int(time.time()):
+            return None
+        student_id = str(payload.get('student_id', '')).strip()
+        return student_id if student_id else None
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
 def fetch_remote_history():
     if not REMOTE_API_BASE_URL:
         return None
@@ -242,7 +289,6 @@ def get_history():
 @app.route('/update_qr', methods=['POST'])
 def update_qr():
     data = request.get_json(silent=True) or {}
-    token = str(data.get('token', '')).strip()
     student_id = str(data.get('student_id', '')).strip()
     expires_in = data.get('expires_in', QR_TOKEN_TTL_SECONDS)
 
@@ -252,14 +298,13 @@ def update_qr():
         expires_in = QR_TOKEN_TTL_SECONDS
 
     expires_in = max(1, min(expires_in, 300))
-    purge_expired_qr_tokens()
-
-    if token and student_id:
-        QR_TOKEN_MAP[token] = {
-            "student_id": student_id,
-            "expires_at": datetime.utcnow() + timedelta(seconds=expires_in),
-        }
-    return jsonify({"status": "success", "expires_in": expires_in})
+    if not student_id or student_id not in load_students():
+        return jsonify({"status": "error", "message": "student not found"}), 404
+    try:
+        token = create_signed_qr_token(student_id, expires_in)
+    except RuntimeError as error:
+        return jsonify({"status": "error", "message": str(error)}), 503
+    return jsonify({"status": "success", "token": token, "expires_in": expires_in})
 
 
 @app.route('/resolve_qr', methods=['GET'])
@@ -269,6 +314,11 @@ def resolve_qr():
     if not token:
         return jsonify({"status": "error", "message": "missing token"}), 400
 
+    signed_student_id = resolve_signed_qr_token(token)
+    if signed_student_id and signed_student_id in load_students():
+        return jsonify({"status": "success", "student_id": signed_student_id})
+
+    # Compatibility for old tokens when running a local single-process server.
     payload = QR_TOKEN_MAP.pop(token, None)
     if payload:
         return jsonify({"status": "success", "student_id": payload["student_id"]})
