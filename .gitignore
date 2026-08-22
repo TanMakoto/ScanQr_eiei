@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.log
+attendance.db
+remote_user_sync_cache.json
+[0-9]*.jpg
+[0-9]*.JPG
+[0-9]*.png

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Attendance System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Kanit', sans-serif; background-color: #f3f4f6; }
+        .main-card { width: 350px; border-radius: 2.5rem; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
+        .gradient-bg { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+        #qrcode img { margin: 0 auto; padding: 18px; background: white; border-radius: 20px; border: 1px solid #f0f0f0; image-rendering: pixelated; }
+        .hidden { display: none !important; }
+        #history-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div id="login-section" class="main-card bg-white">
+        <div class="gradient-bg p-10 text-center text-white">
+            <div class="bg-white/20 w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl">👤</div>
+            <h1 class="text-2xl font-bold uppercase tracking-tight">Student Login</h1>
+        </div>
+        <div class="p-8 space-y-4">
+            <input type="text" id="login-id" placeholder="รหัสนักศึกษา" class="w-full px-4 py-3 rounded-xl bg-gray-50 border outline-none text-sm">
+            <button onclick="handleLogin()" class="w-full gradient-bg text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-all">LOGIN</button>
+            <p id="login-error" class="text-red-500 text-[10px] text-center hidden"></p>
+        </div>
+    </div>
+
+    <div id="dashboard-section" class="main-card bg-white hidden">
+        <div class="gradient-bg p-8 text-center text-white relative">
+            <button onclick="location.reload()" class="absolute top-4 left-4 text-[9px] bg-white/20 px-2 py-1 rounded-lg uppercase">Logout</button>
+            <button onclick="showHistory()" class="absolute top-4 right-4 text-[9px] bg-white/20 px-2 py-1 rounded-lg uppercase">📜 History</button>
+            <h1 class="text-xl font-bold uppercase mt-6">Database QR Sync</h1>
+            <p class="text-[9px] opacity-80 font-light">คณะเทคโนโลยีอุตสาหกรรม</p>
+        </div>
+
+        <div class="p-8 text-center">
+            <div id="qrcode" class="flex justify-center mb-6"></div>
+            <p class="text-[11px] text-gray-500 mb-4">ใช้ได้ 1 ครั้งภายใน 60 วินาที ถ้าสแกนแล้วหรือหมดเวลาให้กดสร้างใหม่</p>
+            <p id="timer-text" class="text-orange-500 font-bold text-sm mb-2">⏳ รีเฟรชใน 60 วินาที</p>
+            
+            <div class="flex justify-between items-end mb-1 px-1">
+                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Status</span>
+                <span id="sync-status" class="text-[10px] font-bold uppercase italic" style="color: #f97316;">❌ ตัดการเชื่อมต่อ</span>
+            </div>
+            <div class="h-2 bg-gray-100 rounded-full overflow-hidden mt-1 mb-6 shadow-inner">
+                <div id="progress-bar" class="h-full bg-indigo-500 w-full transition-all duration-1000"></div>
+            </div>
+            
+            <div class="bg-gray-50 rounded-2xl p-5 mb-6 border border-gray-100 text-left">
+                <div class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-2">Current Student</div>
+                <div class="space-y-1">
+                    <div class="text-[13px] font-bold text-gray-800">ID: <span id="student-id" class="text-indigo-600 font-extrabold">รอสแกน...</span></div>
+                    <div class="text-[13px] font-bold text-gray-500">Name: <span id="student-name" class="text-indigo-400">รอข้อมูล...</span></div>
+                </div>
+            </div>
+            <button onclick="generateQR()" class="w-full gradient-bg py-4 rounded-2xl text-white font-bold text-xs shadow-lg uppercase tracking-widest">✨ Generate New QR</button>
+        </div>
+    </div>
+
+    <div id="history-modal" class="hidden" onclick="closeHistory()">
+        <div class="bg-white w-[320px] rounded-3xl overflow-hidden shadow-2xl" onclick="event.stopPropagation()">
+            <div class="gradient-bg p-4 text-white flex justify-between items-center">
+                <span class="font-bold text-sm">📜 ประวัติการเข้าเรียน</span>
+                <button onclick="closeHistory()" class="text-2xl">&times;</button>
+            </div>
+            <div id="history-content" class="p-4 max-h-[350px] overflow-y-auto space-y-2 bg-gray-50"></div>
+        </div>
+    </div>
+
+    <script>
+        let SERVER_URL;
+        let loggedInSid = null;
+        
+        if (window.location.protocol === 'file:') {
+            // page ถูกเปิดจากไฟล์โดยตรง
+            console.warn('⚠️ เปิดจากไฟล์โดยตรง กรุณาเปิดผ่าน http://<ip>:5000/');
+            SERVER_URL = prompt('กรุณาใส่ URL เซิร์ฟเวอร์ Flask (เช่น http://127.0.0.1:5000 หรือ http://192.168.1.129:5000)');
+            if (!SERVER_URL) {
+                alert('ต้องมี URL เซิร์ฟเวอร์เพื่อใช้งาน');
+            }
+        } else {
+            // page ถูกเปิดผ่าน HTTP – สร้าง SERVER_URL ไปยังเซิร์ฟเวอร์ port 5000
+            const protocol = window.location.protocol; // http: or https:
+            const hostname = window.location.hostname; // 127.0.0.1 or 192.168.x.x
+            SERVER_URL = `${protocol}//${hostname}:5000`;
+            console.debug('✓ SERVER_URL:', SERVER_URL);
+        }
+        let timerInterval;
+
+        function createQrToken() {
+            const sid = (loggedInSid || 'user').slice(-4);
+            const rand = Math.random().toString(36).slice(2, 6);
+            return `Q-${sid}-${Date.now().toString(36).slice(-4)}-${rand}`.toUpperCase();
+        }
+
+        async function handleLogin() {
+            const sid = document.getElementById('login-id').value;
+            const errorElement = document.getElementById('login-error');
+
+            console.debug('logging in', sid, 'using server', SERVER_URL);
+
+            if (window.location.protocol === 'file:') {
+                errorElement.innerText = '⚠️ กรุณาเปิดหน้าเว็บผ่าน http:// หรือ https:// ไม่ใช่ไฟล์โดยตรง';
+                errorElement.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${SERVER_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: sid })
+                });
+                console.debug('HTTP status', res.status);
+                const data = await res.json();
+                console.debug('response', data);
+
+                if (data.status === "success") {
+                    loggedInSid = sid;
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('dashboard-section').classList.remove('hidden');
+                    generateQR();
+                } else {
+                    errorElement.innerText = "❌ " + data.message;
+                    errorElement.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error('login fetch failed', e);
+                errorElement.innerText = "⚠️ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ (เช็ค IP หรือ Firewall)";
+                errorElement.classList.remove('hidden');
+            }
+        }
+
+        async function showHistory() {
+            document.getElementById('history-modal').classList.remove('hidden');
+            const content = document.getElementById('history-content');
+            content.innerHTML = '<p class="text-center text-[10px] py-10 text-gray-400 italic">กำลังโหลด...</p>';
+            try {
+                console.debug('fetching', `${SERVER_URL}/get_history`);
+                const res = await fetch(`${SERVER_URL}/get_history`);
+                console.debug('status', res.status);
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+                const data = await res.json();
+                console.debug('history records:', data.length);
+                content.innerHTML = data.length ? data.map(item => `
+                    <div class="bg-white p-3 rounded-xl border border-gray-100 flex justify-between items-center shadow-sm">
+                        <div class="flex flex-col"><span class="text-[10px] font-bold">${item.date || '-'}</span><span class="text-[9px] text-gray-400">${item.name || '-'}</span></div>
+                        <div class="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">${item.time || '-'}</div>
+                    </div>`).join('') : '<p class="text-center text-[10px] py-10 text-gray-400">ไม่มีข้อมูล</p>';
+            } catch (e) {
+                console.error('showHistory error:', e);
+                content.innerHTML = '<p class="text-red-500 text-[10px] py-10 font-bold text-center">⚠️ เชื่อมต่อไม่ได้</p><p class="text-red-400 text-[8px] text-center px-2">' + e.toString() + '</p>';
+            }
+        }
+
+        function closeHistory() { document.getElementById('history-modal').classList.add('hidden'); }
+
+        async function generateQR() {
+            if (!loggedInSid) {
+                console.error('No logged in student id');
+                return;
+            }
+
+            clearInterval(timerInterval);
+            const qrContainer = document.getElementById("qrcode");
+            qrContainer.innerHTML = "";
+            const token = createQrToken();
+            new QRCode(qrContainer, {
+                text: token,
+                width: 280,
+                height: 280,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+
+            try {
+                const res = await fetch(`${SERVER_URL}/update_qr`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, student_id: loggedInSid, expires_in: 60 })
+                });
+                const st = document.getElementById("sync-status");
+                if (res.ok) { st.innerText = "✓ ออนไลน์"; st.style.color = "#10b981"; }
+            } catch (e) {
+                const st = document.getElementById("sync-status");
+                st.innerText = "❌ ตัดการเชื่อมต่อ"; st.style.color = "#f97316";
+            }
+            startTimer();
+        }
+
+        function startTimer() {
+            let timeLeft = 60;
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById("timer-text").innerText = `⏳ รีเฟรชใน ${timeLeft} วินาที`;
+                document.getElementById("progress-bar").style.width = (timeLeft / 60) * 100 + "%";
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    document.getElementById("qrcode").innerHTML = `<div class="p-10 text-red-500 text-xs text-center border-2 border-dashed border-red-200 rounded-xl bg-red-50 flex flex-col items-center justify-center h-[280px] w-[280px] mx-auto"><p class="font-bold mb-1">⚠️ QR หมดอายุ</p></div>`;
+                    document.getElementById("timer-text").innerText = "⚠️ หมดเวลาแล้ว";
+                    document.getElementById("progress-bar").style.width = "0%";
+                }
+            }, 1000);
+        }
+
+        setInterval(async () => {
+            try {
+                const res = await fetch(`${SERVER_URL}/get_last_student`);
+                const data = await res.json();
+                document.getElementById("student-id").innerText = data.student_id;
+                document.getElementById("student-name").innerText = data.student_name;
+            } catch (e) {}
+        }, 3000);
+    </script>
+</body>
+</html>
