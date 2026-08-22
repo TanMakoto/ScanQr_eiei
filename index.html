@@ -75,15 +75,23 @@
     <script>
         let SERVER_URL;
         let loggedInSid = null;
-        
-        if (window.location.protocol === 'file:') {
+
+        // Priority 1: ?server=URL query param (for Vercel -> ngrok use case)
+        const _urlParams = new URLSearchParams(window.location.search);
+        const _serverParam = _urlParams.get('server');
+        if (_serverParam) {
+            SERVER_URL = _serverParam.replace(/\/+$/, '');
+            console.debug('SERVER_URL from query param:', SERVER_URL);
+        }
+
+        if (!SERVER_URL && window.location.protocol === 'file:') {
             // page ถูกเปิดจากไฟล์โดยตรง
             console.warn('⚠️ เปิดจากไฟล์โดยตรง กรุณาเปิดผ่าน http://<ip>:5000/');
             SERVER_URL = prompt('กรุณาใส่ URL เซิร์ฟเวอร์ Flask (เช่น http://127.0.0.1:5000 หรือ http://192.168.1.129:5000)');
             if (!SERVER_URL) {
                 alert('ต้องมี URL เซิร์ฟเวอร์เพื่อใช้งาน');
             }
-        } else {
+        } else if (!SERVER_URL) {
             // page ถูกเปิดผ่าน HTTP – สร้าง SERVER_URL ไปยังเซิร์ฟเวอร์ port 5000
             const protocol = window.location.protocol;
             const hostname = window.location.hostname;
