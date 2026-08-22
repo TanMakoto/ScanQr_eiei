@@ -85,9 +85,17 @@
             }
         } else {
             // page ถูกเปิดผ่าน HTTP – สร้าง SERVER_URL ไปยังเซิร์ฟเวอร์ port 5000
-            const protocol = window.location.protocol; // http: or https:
-            const hostname = window.location.hostname; // 127.0.0.1 or 192.168.x.x
-            SERVER_URL = `${protocol}//${hostname}:5000`;
+            const protocol = window.location.protocol;
+            const hostname = window.location.hostname;
+            const port = window.location.port;
+
+            if (hostname.includes('vercel.app') || hostname.includes('onrender.com') || port === '' || port === '80' || port === '443') {
+                SERVER_URL = window.location.origin;
+            } else if (port === '5000') {
+                SERVER_URL = window.location.origin;
+            } else {
+                SERVER_URL = `${protocol}//${hostname}:5000`;
+            }
             console.debug('✓ SERVER_URL:', SERVER_URL);
         }
         let timerInterval;

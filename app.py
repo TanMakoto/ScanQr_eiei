@@ -12,7 +12,10 @@ app = Flask(__name__)
 CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(BASE_DIR, 'attendance.db')
+if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+    DB_FILE = '/tmp/attendance.db'
+else:
+    DB_FILE = os.path.join(BASE_DIR, 'attendance.db')
 STUDENTS_FILE = os.path.join(BASE_DIR, 'students.csv')
 QR_TOKEN_TTL_SECONDS = 60
 REMOTE_API_BASE_URL = os.environ.get('REMOTE_API_BASE_URL', 'https://new-data2.onrender.com').rstrip('/')
