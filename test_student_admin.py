@@ -67,6 +67,24 @@ class StudentAdminTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 student_registry.validate_student({'student_id': sid, 'name': 'ผู้ใช้ ทดสอบ'})
 
+    def test_update_details_and_resolve(self):
+        user = {**self.student, 'role': 'อธิการบดี', 'dept': 'สำนักงานอธิการบดี'}
+        with patch('app.lookup_student', return_value=user), patch('student_registry.update_student') as update:
+            self.assertEqual(self.client.put('/api/admin/students', json=user).status_code, 401)
+            update.assert_not_called()
+            response = self.client.put('/api/admin/students', json=user, headers=self.headers)
+            self.assertEqual(response.status_code, 200)
+            update.assert_called_once_with(user['student_id'], user['name'], user['role'], user['dept'])
+            with patch('app.resolve_signed_qr_token', return_value=user['student_id']):
+                resolved = self.client.get('/resolve_qr?token=test').json
+                self.assertEqual(resolved['role'], user['role'])
+                self.assertEqual(resolved['dept'], user['dept'])
+        with patch('app.lookup_student', return_value=None), patch('student_registry.update_student') as update:
+            self.assertEqual(self.client.put('/api/admin/students', json=user, headers=self.headers).status_code, 404)
+            update.assert_not_called()
+        for value in [[], 'x' * 151]:
+            self.assertEqual(self.client.post('/api/admin/students', json={**user, 'role': value}, headers=self.headers).status_code, 400)
+
     def test_admin_page(self):
         self.assertEqual(self.client.get('/admin/students').status_code, 200)
 

@@ -43,16 +43,31 @@ def find_student(sid):
         return None
     try:
         record = collection().find_one({'_id': sid})
-        return {'student_id': record['_id'], 'name': record['name']} if record else None
+        return {'student_id': record['_id'], 'name': record['name'], 'role': record.get('role', ''), 'dept': record.get('dept', '')} if record else None
     except Exception as exc:
         raise RegistryUnavailable('ไม่สามารถค้นหาผู้ใช้งานได้ กรุณาลองใหม่') from exc
 
 
-def create_student(sid, name):
+def create_student(sid, name, role="", dept=""):
     try:
         # MongoDB's unique _id prevents duplicates across concurrent requests.
         result = collection().update_one(
-            {'_id': sid}, {'$setOnInsert': {'name': name}}, upsert=True)
+            {'_id': sid}, {'$setOnInsert': {'name': name, 'role': role, 'dept': dept}}, upsert=True)
         return result.upserted_id is not None
     except Exception as exc:
         raise RegistryUnavailable('บันทึกข้อมูลไม่ได้ กรุณาลองใหม่') from exc
+
+def validate_details(data):
+    values = []
+    for key in ('role', 'dept'):
+        value = data.get(key, '')
+        if not isinstance(value, str) or len(value.strip()) > 150:
+            raise ValueError('ตำแหน่งและสาขา/หน่วยงานต้องเป็นข้อความไม่เกิน 150 ตัวอักษร')
+        values.append(value.strip())
+    return values
+
+def update_student(sid, name, role, dept):
+    try:
+        collection().update_one({'_id': sid}, {'$set': {'name': name, 'role': role, 'dept': dept}}, upsert=True)
+    except Exception as exc:
+        raise RegistryUnavailable('แก้ไขข้อมูลไม่ได้ กรุณาลองใหม่') from exc

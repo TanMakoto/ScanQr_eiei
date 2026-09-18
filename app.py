@@ -154,7 +154,7 @@ def student_admin_page():
     return send_from_directory(BASE_DIR, 'student-admin.html')
 
 
-@app.route('/api/admin/students', methods=['POST'])
+@app.route('/api/admin/students', methods=['POST', 'PUT'])
 def add_student():
     if not student_registry.admin_authorized(request.headers.get('X-Admin-Key', '')):
         return jsonify(status='error', message='รหัสผู้ดูแลไม่ถูกต้อง หรือยังไม่ได้เปิดใช้งาน'), 401
@@ -163,9 +163,15 @@ def add_student():
         return jsonify(status='error', message='ข้อมูลไม่ถูกต้อง'), 400
     try:
         sid, name = student_registry.validate_student(data)
+        role, dept = student_registry.validate_details(data)
     except ValueError as error:
         return jsonify(status='error', message=str(error)), 400
-    if load_students().get(sid) or not student_registry.create_student(sid, name):
+    if request.method == 'PUT':
+        if not lookup_student(sid):
+            return jsonify(status='error', message='ไม่พบรหัสผู้ใช้งานที่ต้องการแก้ไข'), 404
+        student_registry.update_student(sid, name, role, dept)
+        return jsonify(status='success', message='แก้ไขข้อมูลผู้ใช้งานแล้ว'), 200
+    if load_students().get(sid) or not student_registry.create_student(sid, name, role, dept):
         return jsonify(status='error', message='มีรหัสผู้ใช้งานนี้แล้ว ไม่ได้แก้ไขข้อมูลเดิม'), 409
     return jsonify(status='success', student_id=sid, name=name,
                    message='เพิ่มผู้ใช้งานแล้ว สามารถกลับไป Login เพื่อสร้าง QR ได้ทันที'), 201
@@ -350,7 +356,7 @@ def resolve_qr():
     if signed_student_id:
         student = lookup_student(signed_student_id)
         if student:
-            return jsonify({"status": "success", "student_id": signed_student_id, "name": student['name']})
+            return jsonify({"status": "success", "student_id": signed_student_id, "name": student['name'], "role": student.get("role", ""), "dept": student.get("dept", "")})
 
     # Compatibility for old tokens when running a local single-process server.
     payload = QR_TOKEN_MAP.pop(token, None)

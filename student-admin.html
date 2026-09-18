@@ -10,7 +10,7 @@
 </head>
 <body><main>
   <a href="/">← กลับหน้า Login</a>
-  <h1>เพิ่มผู้ใช้งาน</h1>
+  <h1>เพิ่ม / แก้ไขผู้ใช้งาน</h1>
   <p>เพิ่มได้ทั้งนักศึกษา อาจารย์ ผู้บริหาร เจ้าหน้าที่ และบุคคลทั่วไป กำหนดรหัสเฉพาะแต่ละคน แล้วใช้รหัสนั้นเข้าสร้าง QR และลงทะเบียนใบหน้า</p>
   <form id="student-form">
     <label for="admin-key">รหัสผู้ดูแล</label>
@@ -19,6 +19,11 @@
     <input id="student-id" pattern="[\p{L}\p{M}\p{N}_\-]{1,64}" maxlength="64" placeholder="เช่น 6612247020, STAFF-001, RECTOR-001" required autocomplete="off">
     <label for="student-name">ชื่อ–นามสกุล</label>
     <input id="student-name" minlength="2" maxlength="150" required autocomplete="off">
+    <label for="role">ตำแหน่ง</label>
+    <input id="role" maxlength="150" placeholder="เช่น อธิการบดี อาจารย์ เจ้าหน้าที่ นักศึกษา">
+    <label for="dept">สาขา / หน่วยงาน</label>
+    <input id="dept" maxlength="150" placeholder="เช่น สำนักงานอธิการบดี">
+    <label><input type="checkbox" id="edit-existing" style="width:auto"> แก้ไขผู้ใช้งานเดิมตามรหัส (กรอกชื่อ ตำแหน่ง และหน่วยงานให้ครบ)</label>
     <button id="save" type="submit">บันทึกผู้ใช้งาน</button>
   </form>
   <p id="message" role="status" aria-live="polite"></p>
@@ -32,9 +37,9 @@
       message.textContent = 'กำลังบันทึก…';
       try {
         const response = await fetch('/api/admin/students', {
-          method: 'POST',
+          method: document.getElementById('edit-existing').checked ? 'PUT' : 'POST',
           headers: {'Content-Type':'application/json', 'X-Admin-Key':key.value},
-          body: JSON.stringify({student_id:document.getElementById('student-id').value.trim(), name:document.getElementById('student-name').value.trim()})
+          body: JSON.stringify({student_id:document.getElementById('student-id').value.trim(), name:document.getElementById('student-name').value.trim(), role:document.getElementById('role').value.trim(), dept:document.getElementById('dept').value.trim()})
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'บันทึกไม่สำเร็จ');
