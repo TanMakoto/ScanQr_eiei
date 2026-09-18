@@ -13,6 +13,7 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 import requests
+import student_registry
 
 app = Flask(__name__)
 CORS(app)
@@ -139,6 +140,37 @@ def load_students():
     return local_students
 
 
+def lookup_student(sid):
+    return student_registry.find_student(sid) or load_students().get(sid)
+
+
+@app.errorhandler(student_registry.RegistryUnavailable)
+def registry_unavailable(error):
+    return jsonify(status='error', message=str(error)), 503
+
+
+@app.route('/admin/students')
+def student_admin_page():
+    return send_from_directory(BASE_DIR, 'student-admin.html')
+
+
+@app.route('/api/admin/students', methods=['POST'])
+def add_student():
+    if not student_registry.admin_authorized(request.headers.get('X-Admin-Key', '')):
+        return jsonify(status='error', message='รหัสผู้ดูแลไม่ถูกต้อง หรือยังไม่ได้เปิดใช้งาน'), 401
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(status='error', message='ข้อมูลไม่ถูกต้อง'), 400
+    try:
+        sid, name = student_registry.validate_student(data)
+    except ValueError as error:
+        return jsonify(status='error', message=str(error)), 400
+    if load_students().get(sid) or not student_registry.create_student(sid, name):
+        return jsonify(status='error', message='มีรหัสนักศึกษานี้แล้ว ไม่ได้แก้ไขข้อมูลเดิม'), 409
+    return jsonify(status='success', student_id=sid, name=name,
+                   message='เพิ่มนักศึกษาแล้ว สามารถกลับไป Login เพื่อสร้าง QR ได้ทันที'), 201
+
+
 def get_ip_address():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -245,7 +277,7 @@ def index():
 def login():
     data = request.get_json(silent=True) or {}
     sid = str(data.get('id', '')).strip()
-    user = load_students().get(sid)
+    user = lookup_student(sid)
 
     if user:
         return jsonify({"status": "success", "name": user['name']})
@@ -298,7 +330,7 @@ def update_qr():
         expires_in = QR_TOKEN_TTL_SECONDS
 
     expires_in = max(1, min(expires_in, 300))
-    if not student_id or student_id not in load_students():
+    if not student_id or not lookup_student(student_id):
         return jsonify({"status": "error", "message": "student not found"}), 404
     try:
         token = create_signed_qr_token(student_id, expires_in)
@@ -315,8 +347,10 @@ def resolve_qr():
         return jsonify({"status": "error", "message": "missing token"}), 400
 
     signed_student_id = resolve_signed_qr_token(token)
-    if signed_student_id and signed_student_id in load_students():
-        return jsonify({"status": "success", "student_id": signed_student_id})
+    if signed_student_id:
+        student = lookup_student(signed_student_id)
+        if student:
+            return jsonify({"status": "success", "student_id": signed_student_id, "name": student['name']})
 
     # Compatibility for old tokens when running a local single-process server.
     payload = QR_TOKEN_MAP.pop(token, None)

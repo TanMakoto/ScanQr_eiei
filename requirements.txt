@@ -6,3 +6,4 @@ pandas
 # QR-only attendance runtime
 opencv-python==4.11.0.86
 requests
+pymongo>=4.6,<5
