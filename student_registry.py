@@ -1,6 +1,6 @@
 """Persistent student registration shared by all Vercel instances."""
 import os
-import re
+import unicodedata
 import hmac
 from functools import lru_cache
 
@@ -13,13 +13,13 @@ class RegistryUnavailable(Exception):
 def collection():
     uri = os.environ.get('MONGODB_URI', '').strip()
     if not uri:
-        raise RegistryUnavailable('ยังไม่ได้ตั้งค่าฐานข้อมูลนักศึกษา')
+        raise RegistryUnavailable('ยังไม่ได้ตั้งค่าฐานข้อมูลผู้ใช้งาน')
     try:
         from pymongo import MongoClient
         client = MongoClient(uri, serverSelectionTimeoutMS=5000, connectTimeoutMS=5000)
         return client[os.environ.get('MONGODB_DATABASE', 'attendanceDB')]['qr_students']
     except Exception as exc:
-        raise RegistryUnavailable('เชื่อมต่อฐานข้อมูลนักศึกษาไม่ได้') from exc
+        raise RegistryUnavailable('เชื่อมต่อฐานข้อมูลผู้ใช้งานไม่ได้') from exc
 
 
 def admin_authorized(value):
@@ -31,8 +31,8 @@ def admin_authorized(value):
 def validate_student(data):
     sid = data.get('student_id', '')
     name = data.get('name', '')
-    if not isinstance(sid, str) or not re.fullmatch(r'[0-9]{8,15}', sid.strip()):
-        raise ValueError('กรุณากรอกรหัสนักศึกษาเป็นตัวเลข 8–15 หลัก')
+    if not isinstance(sid, str) or not (1 <= len(sid.strip()) <= 64 and all(c in '_-' or unicodedata.category(c)[0] in 'LNM' for c in sid.strip())):
+        raise ValueError('รหัสผู้ใช้งานต้องมี 1–64 ตัวอักษร ใช้ตัวอักษร ตัวเลข _ หรือ - โดยไม่มีช่องว่าง')
     if not isinstance(name, str) or not 2 <= len(name.strip()) <= 150:
         raise ValueError('กรุณากรอกชื่อและนามสกุล 2–150 ตัวอักษร')
     return sid.strip(), name.strip()
@@ -45,7 +45,7 @@ def find_student(sid):
         record = collection().find_one({'_id': sid})
         return {'student_id': record['_id'], 'name': record['name']} if record else None
     except Exception as exc:
-        raise RegistryUnavailable('ไม่สามารถค้นหานักศึกษาได้ กรุณาลองใหม่') from exc
+        raise RegistryUnavailable('ไม่สามารถค้นหาผู้ใช้งานได้ กรุณาลองใหม่') from exc
 
 
 def create_student(sid, name):

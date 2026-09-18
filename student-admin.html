@@ -3,23 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>เพิ่มนักศึกษา | Smart Attendance</title>
+  <title>เพิ่มผู้ใช้งาน | Smart Attendance</title>
   <style>
     *{box-sizing:border-box}body{margin:0;background:#f3f4f6;color:#1e293b;font-family:Tahoma,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px}main{background:white;width:100%;max-width:440px;border-radius:24px;padding:32px;box-shadow:0 15px 40px #0001}h1{font-size:25px;color:#654ee8}p{line-height:1.7;font-size:14px}label{display:block;margin-top:20px;font-size:14px}input,button{font:inherit;width:100%;padding:13px;border-radius:10px;margin-top:8px}input{border:1px solid #cbd5e1}button{background:#704fee;color:white;border:0;cursor:pointer;margin-top:24px}button:disabled{opacity:.6;cursor:wait}a{color:#654ee8}#message{overflow-wrap:anywhere}input:focus-visible,button:focus-visible{outline:3px solid #c4b5fd}
   </style>
 </head>
 <body><main>
   <a href="/">← กลับหน้า Login</a>
-  <h1>เพิ่มนักศึกษา</h1>
-  <p>สำหรับอาจารย์หรือผู้ดูแล เมื่อบันทึกแล้ว นักศึกษาจะสร้าง QR และลงทะเบียนใบหน้าได้</p>
+  <h1>เพิ่มผู้ใช้งาน</h1>
+  <p>เพิ่มได้ทั้งนักศึกษา อาจารย์ ผู้บริหาร เจ้าหน้าที่ และบุคคลทั่วไป กำหนดรหัสเฉพาะแต่ละคน แล้วใช้รหัสนั้นเข้าสร้าง QR และลงทะเบียนใบหน้า</p>
   <form id="student-form">
     <label for="admin-key">รหัสผู้ดูแล</label>
     <input id="admin-key" type="password" autocomplete="off" required minlength="32">
-    <label for="student-id">รหัสนักศึกษา</label>
-    <input id="student-id" inputmode="numeric" pattern="[0-9]{8,15}" maxlength="15" required autocomplete="off">
+    <label for="student-id">รหัสผู้ใช้งาน</label>
+    <input id="student-id" pattern="[\p{L}\p{M}\p{N}_\-]{1,64}" maxlength="64" placeholder="เช่น 6612247020, STAFF-001, RECTOR-001" required autocomplete="off">
     <label for="student-name">ชื่อ–นามสกุล</label>
     <input id="student-name" minlength="2" maxlength="150" required autocomplete="off">
-    <button id="save" type="submit">บันทึกนักศึกษา</button>
+    <button id="save" type="submit">บันทึกผู้ใช้งาน</button>
   </form>
   <p id="message" role="status" aria-live="polite"></p>
   <script>

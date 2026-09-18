@@ -12,7 +12,7 @@ class StudentAdminTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
         self.headers = {'X-Admin-Key': 'a' * 32}
-        self.student = {'student_id': '6612247099', 'name': 'นักศึกษา ทดสอบ'}
+        self.student = {'student_id': 'STAFF-0099', 'name': 'เจ้าหน้าที่ ทดสอบ'}
 
     def test_unauthorized_cannot_write(self):
         with patch('student_registry.create_student') as write:
@@ -59,6 +59,13 @@ class StudentAdminTests(unittest.TestCase):
     def test_database_failure_is_not_student_not_found(self):
         with patch('student_registry.find_student', side_effect=student_registry.RegistryUnavailable('ฐานข้อมูลไม่พร้อม')):
             self.assertEqual(self.client.post('/login', json={'id':'6612247099'}).status_code, 503)
+
+    def test_general_user_ids(self):
+        for sid in ['RECTOR-001', 'STAFF_42', 'A', '0012345678', 'บุคลากร-01']:
+            self.assertEqual(student_registry.validate_student({'student_id': sid, 'name': 'ผู้ใช้ ทดสอบ'})[0], sid)
+        for sid in ['bad id', '../bad', 'A' * 65, '']:
+            with self.assertRaises(ValueError):
+                student_registry.validate_student({'student_id': sid, 'name': 'ผู้ใช้ ทดสอบ'})
 
     def test_admin_page(self):
         self.assertEqual(self.client.get('/admin/students').status_code, 200)

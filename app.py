@@ -166,9 +166,9 @@ def add_student():
     except ValueError as error:
         return jsonify(status='error', message=str(error)), 400
     if load_students().get(sid) or not student_registry.create_student(sid, name):
-        return jsonify(status='error', message='มีรหัสนักศึกษานี้แล้ว ไม่ได้แก้ไขข้อมูลเดิม'), 409
+        return jsonify(status='error', message='มีรหัสผู้ใช้งานนี้แล้ว ไม่ได้แก้ไขข้อมูลเดิม'), 409
     return jsonify(status='success', student_id=sid, name=name,
-                   message='เพิ่มนักศึกษาแล้ว สามารถกลับไป Login เพื่อสร้าง QR ได้ทันที'), 201
+                   message='เพิ่มผู้ใช้งานแล้ว สามารถกลับไป Login เพื่อสร้าง QR ได้ทันที'), 201
 
 
 def get_ip_address():
@@ -281,7 +281,7 @@ def login():
 
     if user:
         return jsonify({"status": "success", "name": user['name']})
-    return jsonify({"status": "error", "message": "ไม่พบรหัสนักศึกษา"})
+    return jsonify({"status": "error", "message": "ไม่พบรหัสผู้ใช้งาน"})
 
 
 @app.route('/update_attendance_status', methods=['POST'])
